@@ -34,7 +34,7 @@ HTTP_CODES = {
 }
 
 def init_db():
-    conn = sqlite3.connect('monitor.db')
+    conn = sqlite3.connect('/mount/src/website-response-status-code-monitoring/monitor.db')
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS domains
                  (url TEXT PRIMARY KEY, 
