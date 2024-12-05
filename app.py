@@ -8,7 +8,6 @@ import smtplib
 from email.message import EmailMessage
 import statistics
 
-# HTTP Status Code Dictionary
 HTTP_CODES = {
     100: "Continue", 101: "Switching protocols", 102: "Processing", 103: "Early Hints",
     200: "OK", 201: "Created", 202: "Accepted", 203: "Non-Authoritative Information",
@@ -33,6 +32,32 @@ HTTP_CODES = {
     507: "Insufficient Storage", 508: "Loop Detected", 510: "Not Extended",
     511: "Network Authentication Required"
 }
+
+def init_db():
+    conn = sqlite3.connect('monitor.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS domains
+                 (url TEXT PRIMARY KEY, 
+                  speed_threshold REAL DEFAULT 2.0,
+                  enabled INTEGER DEFAULT 1)''')
+    conn.commit()
+    return conn
+
+def add_domain(conn, url, speed_threshold=2.0):
+    c = conn.cursor()
+    c.execute('INSERT OR REPLACE INTO domains (url, speed_threshold) VALUES (?, ?)',
+              (url, speed_threshold))
+    conn.commit()
+
+def get_domains(conn):
+    c = conn.cursor()
+    c.execute('SELECT url, speed_threshold FROM domains WHERE enabled = 1')
+    return c.fetchall()
+
+def remove_domain(conn, url):
+    c = conn.cursor()
+    c.execute('DELETE FROM domains WHERE url = ?', (url,))
+    conn.commit()
 
 def get_status_description(code):
     return HTTP_CODES.get(code, "Unknown Status Code")
@@ -126,85 +151,42 @@ with st.expander("Email Settings"):
     else:
         st.success("Email configured!")
 
-# Monitor settings
-col1, col2 = st.columns(2)
-with col1:
-    speed_threshold = st.number_input('Speed Alert Threshold (seconds)', value=2.0, step=0.1)
-with col2:
-    check_interval = st.number_input('Check Interval (minutes)', value=15, min_value=1)
-
-# Website management
-new_website = st.text_input('Add website (include https://)')
-if new_website:
-    if 'websites' not in st.session_state:
-        st.session_state.websites = set()
-    st.session_state.websites.add(new_website)
-
-# Display results
-if 'websites' in st.session_state and st.session_state.websites:
-    results = []
-    for url in st.session_state.websites:
-        result = check_website(url, speed_threshold)
-        results.append(result)
-    
-    df = pd.DataFrame(results)
-    
-    # Style based on status and speed
-    def style_df(val):
-        if isinstance(val, str) and val == 'Error':
-            return 'color: red'
-        if isinstance(val, float) and val > speed_threshold:
-            return 'color: orange'
-        return 'color: green'
-    
-    styled_df = df.style.applymap(style_df)
-    st.dataframe(styled_df, use_container_width=True)
-
-    if st.button('Clear All'):
-        st.session_state.websites.clear()
-
-# Auto-refresh
-if st.checkbox(f'Auto-refresh every {check_interval} minutes'):
-    time.sleep(check_interval * 60)
-    st.experimental_rerun()
-
-
-# Database functions from the last code block
-
-# UI
+# Initialize database
 conn = init_db()
 
+# Website management
 col1, col2 = st.columns(2)
 with col1:
-    new_website = st.text_input('Add website')
-    speed_threshold = st.number_input('Speed threshold (s)', value=2.0)
+    new_website = st.text_input('Add website (include https://)')
+    speed_threshold = st.number_input('Speed Alert Threshold (seconds)', value=2.0, step=0.1)
     if st.button('Add') and new_website:
         add_domain(conn, new_website, speed_threshold)
+        st.success(f'Added {new_website}')
 
-with col2:
-    domains = get_domains(conn)
-    if domains:
-        to_remove = st.selectbox('Select to remove', [d[0] for d in domains])
-        if st.button('Remove'):
-            remove_domain(conn, to_remove)
-            st.experimental_rerun()
+# Display current domains
+st.write("Current domains in database:")
+domains = get_domains(conn)
+st.write(domains)
 
+# Display monitoring results
 if domains:
     results = []
     for url, threshold in domains:
         result = check_website(url, threshold)
         results.append(result)
-    st.dataframe(pd.DataFrame(results))
+    
+    df = pd.DataFrame(results)
+    styled_df = df.style.applymap(lambda v: 'color: red' if 'Error' in str(v) else 'color: green')
+    st.dataframe(styled_df, use_container_width=True)
+    
+    # Remove website option
+    to_remove = st.selectbox('Select website to remove', [d[0] for d in domains])
+    if st.button('Remove'):
+        remove_domain(conn, to_remove)
+        st.experimental_rerun()
 
-check_interval = st.number_input('Check interval (minutes)', value=15)
+# Auto-refresh
+check_interval = st.number_input('Check Interval (minutes)', value=15, min_value=1)
 if st.checkbox(f'Auto-refresh ({check_interval}min)'):
     time.sleep(check_interval * 60)
     st.experimental_rerun()
-
-# Add after init_db() function
-st.write("Current domains in database:")
-domains = get_domains(conn)
-st.write(domains)
-
-# Add after add_domain() call
-st.write(f"Database after adding: {get_domains(conn)}")
