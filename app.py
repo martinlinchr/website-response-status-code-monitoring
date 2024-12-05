@@ -200,3 +200,11 @@ check_interval = st.number_input('Check interval (minutes)', value=15)
 if st.checkbox(f'Auto-refresh ({check_interval}min)'):
     time.sleep(check_interval * 60)
     st.experimental_rerun()
+
+# Add after init_db() function
+st.write("Current domains in database:")
+domains = get_domains(conn)
+st.write(domains)
+
+# Add after add_domain() call
+st.write(f"Database after adding: {get_domains(conn)}")
