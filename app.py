@@ -1,4 +1,5 @@
 import streamlit as st
+import sqlite3
 import requests
 import pandas as pd
 from datetime import datetime
@@ -164,5 +165,39 @@ if 'websites' in st.session_state and st.session_state.websites:
 
 # Auto-refresh
 if st.checkbox(f'Auto-refresh every {check_interval} minutes'):
+    time.sleep(check_interval * 60)
+    st.experimental_rerun()
+
+
+# Database functions from the last code block
+
+# UI
+st.title('Website Monitor')
+conn = init_db()
+
+col1, col2 = st.columns(2)
+with col1:
+    new_website = st.text_input('Add website')
+    speed_threshold = st.number_input('Speed threshold (s)', value=2.0)
+    if st.button('Add') and new_website:
+        add_domain(conn, new_website, speed_threshold)
+
+with col2:
+    domains = get_domains(conn)
+    if domains:
+        to_remove = st.selectbox('Select to remove', [d[0] for d in domains])
+        if st.button('Remove'):
+            remove_domain(conn, to_remove)
+            st.experimental_rerun()
+
+if domains:
+    results = []
+    for url, threshold in domains:
+        result = check_website(url, threshold)
+        results.append(result)
+    st.dataframe(pd.DataFrame(results))
+
+check_interval = st.number_input('Check interval (minutes)', value=15)
+if st.checkbox(f'Auto-refresh ({check_interval}min)'):
     time.sleep(check_interval * 60)
     st.experimental_rerun()
