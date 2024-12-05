@@ -172,7 +172,6 @@ if st.checkbox(f'Auto-refresh every {check_interval} minutes'):
 # Database functions from the last code block
 
 # UI
-st.title('Website Monitor')
 conn = init_db()
 
 col1, col2 = st.columns(2)
